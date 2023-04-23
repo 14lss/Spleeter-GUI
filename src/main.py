@@ -12,7 +12,7 @@ class MainWindow(QMainWindow):
         self.setFixedSize(QSize(382, 492))
         # Variables
         self.settings_file = None
-        self.filename = ["File Name", 0]
+        self.filename = ["Click to browse", 0]
         self.stems = 2
         self.initUI()
         self.load_settings()
@@ -149,11 +149,12 @@ class MainWindow(QMainWindow):
         self.update_colors()
 
     def get_file_path(self):
-        filename = QFileDialog.getOpenFileName(filter="Audio Files (*.mp3)")
-        if filename == "":
+        filename = QFileDialog.getOpenFileName(filter="Audio Files (*.mp3 *.wav *.aiff *.flac *.m4a *.ogg)")
+        if filename[0] == "":
             self.filename = self.filename
         else:
             self.filename = filename
+        self.file_button.setText(self.filename[0][self.filename[0].rfind("/") + 1:])
 
     def split_audio(self):
         if self.filename[0] == "File Name":
