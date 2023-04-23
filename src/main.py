@@ -1,144 +1,172 @@
-import tkinter as tk
+import sys
+import os.path
 import subprocess
-from tkinter import messagebox
-from tkinter.filedialog import askopenfilename
+from PyQt6.QtCore import QSize, Qt
+from PyQt6.QtWidgets import QApplication, QMainWindow, QPushButton, QFileDialog, QWidget, QErrorMessage, QFrame, QLabel
 
-# Create window
-window = tk.Tk(className="Spleeter")
-window.title("Spleeter")
-window.geometry("382x492")
-window.resizable(width=False,height=False)
-window.configure(background="#FFFFFF")
-window.iconbitmap("spleeter_logo.ico")
-
-# Global variables
-filepath = "File Name"
-
-# Class
-class Split:
-    def __init__(self, filepath):
-        self.filepath = filepath
+class MainWindow(QMainWindow):
+    def __init__(self):
+        # Setup
+        super().__init__()
+        self.setWindowTitle("Spleeter")
+        self.setFixedSize(QSize(382, 492))
+        # Variables
+        self.settings_file = None
+        self.filename = ["File Name", 0]
         self.stems = 2
+        self.initUI()
+        self.load_settings()
+    
+    def initUI(self):
+        # Main Stylesheet
+        self.setStyleSheet("background-color: rgb(255, 255, 255);\nfont: 8pt \"Inter\";")
 
-    def get_file_path(self):
-        self.filepath = askopenfilename()
-        file = self.filepath
-        file = file[file.rfind("/") + 1:]
-        choose_file_button.config(text=file)
+        # Tab Area
+        self.tabArea = QFrame(self)
+        self.tabArea.setGeometry(92, 16, 197, 36)
+        self.tabArea.setFrameShape(QFrame.Shape.Box)
+        self.tabArea.setFrameShadow(QFrame.Shadow.Raised)
+        # Buttons
+        self.upload_tab = QPushButton("Upload", self.tabArea)
+        self.upload_tab.setGeometry(5, 4, 105, 28)
+        self.upload_tab.setStyleSheet("background-color: rgb(0, 0, 0);\ncolor: rgb(255, 255, 255);")
+        self.upload_tab.clicked.connect(self.close_settings)
+        self.settings_tab = QPushButton("Settings", self.tabArea)
+        self.settings_tab.setGeometry(114, 4, 78, 28)
+        self.settings_tab.clicked.connect(self.open_settings)
 
+        #---Main Area---#
+        self.mainArea = QWidget(self)
+        self.mainArea.setGeometry(0, 68, 382, 424)
+        self.mainArea.setStyleSheet("background-color: rgb(247, 249, 251);")
+        # Buttons
+        self.split_button = QPushButton("Split Audio", self.mainArea)
+        self.split_button.clicked.connect(self.split_audio)
+        self.split_button.setGeometry(105, 374, 172, 30)
+        self.split_button.setStyleSheet("background-color: rgb(255, 255, 255);")
+        self.file_button = QPushButton("Click to browse", self.mainArea)
+        self.file_button.clicked.connect(self.get_file_path)
+        self.file_button.setGeometry(32, 32, 318, 260)
+        self.file_button.setStyleSheet("background-color: rgb(226, 230, 234);")
+
+        #---Settings---#
+        # Main Area
+        self.settingsArea = QWidget(self)
+        self.settingsArea.setGeometry(0, 68, 382, 424)
+        self.settingsArea.setStyleSheet("background-color: rgb(247, 249, 251);")
+        # Labels
+        self.two_stems_label = QLabel("2 Stems (Vocals and accompaniment)", self.settingsArea)
+        self.two_stems_label.setGeometry(0, 0, 382, 104)
+        self.four_stems_label = QLabel("4 Stems (Vocals / drums / bass / other)", self.settingsArea)
+        self.four_stems_label.setGeometry(0, 104, 382, 104)
+        self.five_stems_label = QLabel("5 Stems (Vocals / drums / bass / piano / other))", self.settingsArea)
+        self.five_stems_label.setGeometry(0, 208, 382, 104)
+        # Buttons
+        self.two_stems_button = QPushButton("Select",self.settingsArea)
+        self.two_stems_button.setGeometry(290, 41, 75, 22)
+        self.two_stems_button.clicked.connect(lambda: self.set_stems(self.two_stems_button))
+
+        self.four_stems_button = QPushButton("Select",self.settingsArea)
+        self.four_stems_button.setGeometry(290, 145, 75, 22)
+        self.four_stems_button.clicked.connect(lambda: self.set_stems(self.four_stems_button))
+
+        self.five_stems_button = QPushButton("Select",self.settingsArea)
+        self.five_stems_button.setGeometry(290, 249, 75, 22)
+        self.five_stems_button.clicked.connect(lambda: self.set_stems(self.five_stems_button))
+
+        self.save_settings_button = QPushButton("Save", self.settingsArea)
+        self.save_settings_button.setGeometry(153, 340, 76, 24)
+        self.save_settings_button.clicked.connect(self.save_settings)
+        # Lines
+        self.line = QFrame(self.settingsArea)
+        self.line.setFrameShape(QFrame.Shape.StyledPanel)
+        self.line.setGeometry(0, 104, 382, 1)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+        self.line = QFrame(self.settingsArea)
+        self.line.setFrameShape(QFrame.Shape.StyledPanel)
+        self.line.setGeometry(0, 208, 382, 1)
+        self.line = QFrame(self.settingsArea)
+        self.line.setFrameShape(QFrame.Shape.StyledPanel)
+        self.line.setGeometry(0, 312, 382, 1)
+        #---Show GUI---#
+        self.mainArea.show()
+        self.tabArea.show()
+        self.settingsArea.hide()
+        self.update_colors()
+
+    def save_settings(self):
+        if os.path.isfile("./settings.txt") == False:
+            self.settings_file = open("settings.txt","a")
+            self.settings_file.write("stems: " + str(self.stems))
+            self.settings_file.close()
+        else:
+            self.settings_file = open("settings.txt", "w")
+            self.settings_file.write("stems: " + str(self.stems))
+            self.settings_file.close()
+
+    def load_settings(self):
+        if os.path.isfile("./settings.txt") == False:
+            self.settings_file = open("settings.txt","a")
+            self.settings_file.write("stems: 2")
+            self.settings_file.close()
+        else:
+            self.settings_file = open("settings.txt", "r")
+            settings = self.settings_file.read()
+            self.stems = int(settings[-1])
+            self.settings_file.close()
+            self.update_colors()
+
+    def open_settings(self):
+        self.settings_tab.setStyleSheet("background-color: rgb(0, 0, 0);\ncolor: rgb(255, 255, 255);")
+        self.upload_tab.setStyleSheet("")
+        self.settingsArea.show()
+        self.mainArea.hide()
+
+    def close_settings(self):
+        self.upload_tab.setStyleSheet("background-color: rgb(0, 0, 0);\ncolor: rgb(255, 255, 255);")
+        self.settings_tab.setStyleSheet("")
+        self.settingsArea.hide()
+        self.mainArea.show()
+
+    def update_colors(self):
+        self.two_stems_button.setStyleSheet("background-color: rgb(255, 22, 64);\ncolor: rgb(255, 255, 255);")
+        self.four_stems_button.setStyleSheet("background-color: rgb(255, 22, 64);\ncolor: rgb(255, 255, 255);")
+        self.five_stems_button.setStyleSheet("background-color: rgb(255, 22, 64);\ncolor: rgb(255, 255, 255);")
+        if self.stems == 2:
+            self.two_stems_button.setStyleSheet("background-color: rgb(17, 208, 117);\ncolor: rgb(255, 255, 255);")
+        elif self.stems == 4:
+            self.four_stems_button.setStyleSheet("background-color: rgb(17, 208, 117);\ncolor: rgb(255, 255, 255);")
+        else:
+            self.five_stems_button.setStyleSheet("background-color: rgb(17, 208, 117);\ncolor: rgb(255, 255, 255);")
+    
     def set_stems(self, button):
-        if button == two_stems_toggle:
+        if button == self.two_stems_button:
             self.stems = 2
-            self.set_toggle_color()
-        elif button == four_stems_toggle:
+        elif button == self.four_stems_button:
             self.stems = 4
-            self.set_toggle_color()
         else:
             self.stems = 5
-            self.set_toggle_color()
+        self.update_colors()
 
-    def set_toggle_color(self):
-        if self.stems == 2:
-            # On
-            two_stems_toggle["bg"] = "#11d075"
-            two_stems_toggle["fg"] = "#FFFFFF"
-            # Off
-            four_stems_toggle["bg"] = "#F7F9FB"
-            four_stems_toggle["fg"] = "#000000"
-            five_stems_toggle["bg"] = "#F7F9FB"
-            five_stems_toggle["fg"] = "#000000"
-        elif self.stems == 4:
-            # Off
-            two_stems_toggle["bg"] = "#F7F9FB"
-            two_stems_toggle["fg"] = "#000000"
-            # On
-            four_stems_toggle["bg"] = "#11d075"
-            four_stems_toggle["fg"] = "#FFFFFF"
-            # Off
-            five_stems_toggle["bg"] = "#F7F9FB"
-            five_stems_toggle["fg"] = "#000000"
+    def get_file_path(self):
+        filename = QFileDialog.getOpenFileName(filter="Audio Files (*.mp3)")
+        if filename == "":
+            self.filename = self.filename
         else:
-            # Off
-            two_stems_toggle["bg"] = "#F7F9FB"
-            two_stems_toggle["fg"] = "#000000"
-            four_stems_toggle["bg"] = "#F7F9FB"
-            four_stems_toggle["fg"] = "#000000"
-            # On
-            five_stems_toggle["bg"] = "#11d075"
-            five_stems_toggle["fg"] = "#FFFFFF"
+            self.filename = filename
 
     def split_audio(self):
-        if self.filepath == "File Name":
-            messagebox.showerror("Error", "No file has been selected")
-            return
-        if self.filepath[-4:] != ".mp3":
-            messagebox.showerror("Error", "Not an mp3 file")
-            return
-        file = self.filepath
-        file = file.replace("/","\\\\")
-        subprocess.run(["python", "-mspleeter", "separate", "-oaudio_output", "-pspleeter:"+ str(self.stems) +"stems", file])
-    
-    def open_settings(self, elements):
+        if self.filename[0] == "File Name":
+            error_dialog = QErrorMessage(self.centralWidget)
+            error_dialog.setWindowTitle("Error")
+            error_dialog.showMessage("No file has been selected")
+        else:
+            file = self.filename[0]
+            file = file.replace("/","\\\\")
+            subprocess.run(["python", "-mspleeter", "separate", "-oaudio_output", "-pspleeter:"+ str(self.stems) +"stems", file])
 
-        settings_tab["bg"] = "#000000"
-        settings_tab["fg"] = "#FFFFFF"
-        upload_tab["bg"] = "#F7F9FB"
-        upload_tab["fg"] = "#000000"
-
-        self.set_toggle_color()
-        
-        for element in elements:
-            if element == two_stems_toggle:
-                element.place(x=16, y=84, width=350, height=110)
-            elif element == four_stems_toggle:
-                element.place(x=16, y=220, width=350, height=110)
-            elif element == five_stems_toggle:
-                element.place(x=16, y=356, width=350, height=110)
-            else:
-                element.place_forget()
-        
-    def close_settings(self, elements):
-
-        settings_tab["bg"] = "#F7F9FB"
-        settings_tab["fg"] = "#000000"
-        upload_tab["bg"] = "#000000"
-        upload_tab["fg"] = "#FFFFFF"
-
-        for element in elements:
-            if element == split_button:
-                element.place(x=105, y=442, width=172, height=30)
-            elif element == choose_file_button:
-                element.place(x=32, y=100, width=318, height=260)
-            else:
-                element.place_forget()
-
-s = Split(filepath)
-# Areas
-upload_area = tk.Button(window, text="", state="disabled", bg="#F7F9FB", border=0)
-tab_area = tk.Button(window, text="", state="disabled", bg="#F7F9FB", relief="groove")
-
-# Buttons
-choose_file_button = tk.Button(window, text="Click to browse", command=s.get_file_path, bg="#E2E6EA", fg="#242634",font=("Inter Regular", 9), relief="groove")
-split_button = tk.Button(window, text="Split Audio", command=s.split_audio, font=("Inter Regular", 9), bg="#FFFFFF")
-
-# Settings
-two_stems_toggle = tk.Button(window, text="2 Stems (Vocals and accompaniment)", fg="#FFFFFF", command= lambda: s.set_stems(two_stems_toggle), relief="ridge")
-four_stems_toggle = tk.Button(window, text="4 Stems (Vocals / drums / bass / other)", fg="#FFFFFF", command= lambda: s.set_stems(four_stems_toggle), relief="ridge")
-five_stems_toggle = tk.Button(window, text="5 Stems (Vocals / drums / bass / piano / other)", fg="#FFFFFF", command= lambda: s.set_stems(five_stems_toggle), relief="ridge")
-
-# Tabs
-upload_tab = tk.Button(window, text="Upload", bg="#000000", fg="#FFFFFF", font=("Inter Regular", 9), relief="raised",command= lambda: s.close_settings([split_button, choose_file_button, two_stems_toggle, four_stems_toggle, five_stems_toggle]))
-settings_tab = tk.Button(window, text="Settings", bg="#F7F9FB", font=("Inter Regular", 9), relief="raised",command= lambda: s.open_settings([split_button, choose_file_button, two_stems_toggle, four_stems_toggle, five_stems_toggle]))
-
-# Load ui
-choose_file_button.place(x=32, y=100, width=318, height=260)
-split_button.place(x=105, y=442, width=172, height=30)
-
-upload_tab.place(x=97, y=20, width=105, height=28)
-settings_tab.place(x=206, y=20, width=78, height=28)
-
-upload_area.place(x=0, y=68, width=382, height=424)
-tab_area.place(x=92, y=16, width=197, height=36)
-
-# Keep window open
-window.mainloop()
+app = QApplication(sys.argv)
+window = MainWindow()
+window.show()
+# Loop
+app.exec()
